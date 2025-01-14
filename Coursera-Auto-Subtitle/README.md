@@ -35,7 +35,7 @@
 3. Click the icon to open the menu and set your preferred language.
 
 ## Demo
-![Demo](https://github.com/htrnguyen/Coursera-Auto-Subtitle/raw/main/DEMO.png)
+![Demo](https://github.com/htrnguyen/User-Scripts/raw/main/Coursera-Auto-Subtitle/DEMO.png)
 
 ## Version 1.0
 This is the **first release** of Coursera Auto Subtitle. Key features include:
