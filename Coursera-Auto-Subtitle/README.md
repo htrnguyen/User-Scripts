@@ -1,6 +1,6 @@
 # Coursera Auto Subtitle
 
-![Logo](https://github.com/htrnguyen/Coursera-Auto-Subtitle/raw/main/coursera-auto-subtitle-logo.png)
+![Logo](https://github.com/htrnguyen/User-Scripts/raw/main/Coursera-Auto-Subtitle/coursera-auto-subtitle-logo.png)
 
 ![GitHub License](https://img.shields.io/github/license/htrnguyen/Coursera-Auto-Subtitle?style=for-the-badge)
 ![Greasy Fork Version](https://img.shields.io/greasyfork/v/522571?label=Greasy%20Fork&style=for-the-badge)
