@@ -1,6 +1,6 @@
 # Unlock Unlimited Medium
 
-![Logo](https://github.com/htrnguyen/Unlock-Unlimited-Medium/raw/main/Unlock%20Unlimited%20Medium%20Logo.png)
+![Logo](https://github.com/htrnguyen/User-Scripts/Unlock-Unlimited-Medium/raw/main/Unlock%20Unlimited%20Medium%20Logo.png)
 
 ![GitHub License](https://img.shields.io/github/license/htrnguyen/unlock-unlimited-medium?style=for-the-badge)
 ![Greasy Fork Version](https://img.shields.io/greasyfork/v/522818?label=Greasy%20Fork&style=for-the-badge)
