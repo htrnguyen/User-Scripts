@@ -1,87 +1,94 @@
 // ==UserScript==
 // @name         Unlock Unlimited Medium
-// @namespace    https://github.com/htrnguyen/unlock-unlimited-medium
-// @version      1.2
-// @description  Redirects Medium articles to medium.rest for unlimited reading experience without paywalls or restrictions
+// @namespace    https://github.com/htrnguyen/User-Scripts/tree/main/Unlock-Unlimited-Medium
+// @version      1.7
+// @description  Unlock all Medium-based articles via medium.rest, detecting Medium logo in the top-left corner for UI enhancements.
 // @author       Hà Trọng Nguyễn
 // @license      MIT
-// @match        *://*.medium.com/*
+// @match        *://*/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_openInTab
-// @supportURL   https://github.com/htrnguyen/unlock-unlimited-medium/issues
+// @supportURL   https://github.com/htrnguyen/User-Scripts/tree/main/Unlock-Unlimited-Medium/issues
 // @homepage     https://medium.rest/
-// @icon         https://github.com/htrnguyen/Unlock-Unlimited-Medium/raw/main/Unlock%20Unlimited%20Medium%20Logo.png
+// @icon         https://github.com/htrnguyen/User-Scripts/raw/main/Unlock-Unlimited-Medium/Unlock%20Unlimited%20Medium%20Logo.png
 // ==/UserScript==
 
-/*
- * Unlock Unlimited Medium
- * Developed by: Hà Trọng Nguyễn
- * GitHub: https://github.com/htrnguyen/unlock-unlimited-medium
- * Medium.rest: https://medium.rest/
- * License: MIT
- *
- * This userscript redirects Medium articles to medium.rest for a better reading experience without restrictions.
- */
+;(function () {
+    'use strict'
 
-(function () {
-    'use strict';
-
-    // Create draggable icon
-    const icon = document.createElement('div');
-    icon.innerHTML = '<img src="https://github.com/htrnguyen/Unlock-Unlimited-Medium/raw/main/Unlock%20Unlimited%20Medium%20Logo.png" alt="Unlock Unlimited Medium" style="width: 32px; height: 32px;">';
-    icon.title = 'Open with medium.rest';
-    icon.style.position = 'fixed';
-    icon.style.bottom = '20px';
-    icon.style.right = '20px';
-    icon.style.zIndex = '1000';
-    icon.style.padding = '5px';
-    icon.style.cursor = 'pointer';
-    icon.style.backgroundColor = '#f0f0f0';
-    icon.style.borderRadius = '50%';
-    icon.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
-    document.body.appendChild(icon);
-
-    let isDragging = false;
-    let offsetX, offsetY;
-
-    icon.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        offsetX = e.clientX - icon.offsetLeft;
-        offsetY = e.clientY - icon.offsetTop;
-    });
-
-    document.addEventListener('mousemove', (e) => {
-        if (isDragging) {
-            icon.style.left = `${e.clientX - offsetX}px`;
-            icon.style.top = `${e.clientY - offsetY}px`;
-        }
-    });
-
-    document.addEventListener('mouseup', () => {
-        isDragging = false;
-    });
-
-    function convertToMediumRest(url) {
-        const parsedUrl = new URL(url);
-        parsedUrl.hostname = 'medium.rest';
-        return parsedUrl.href;
+    function generateMediumRestURL(originalUrl) {
+        return `https://medium.rest/query-by-url?urlPost=${encodeURIComponent(
+            originalUrl
+        )}`
     }
 
-    icon.addEventListener('click', () => {
-        const newUrl = convertToMediumRest(location.href);
-        GM_openInTab(newUrl, { active: true });
-    });
+    function openMediumRestWithUrl(mediumUrl) {
+        GM_openInTab(generateMediumRestURL(mediumUrl), {active: true})
+    }
 
-    GM_registerMenuCommand('Open with medium.rest', () => {
-        const newUrl = convertToMediumRest(location.href);
-        GM_openInTab(newUrl, { active: true });
-    });
+    function isMediumArticle(link) {
+        try {
+            const url = new URL(link.href)
+            if (url.hostname.includes('medium.com')) return true
 
-    document.querySelectorAll('a[href*="medium.com"]').forEach(link => {
-        link.addEventListener('click', (event) => {
-            event.preventDefault();
-            const newUrl = convertToMediumRest(link.href);
-            GM_openInTab(newUrl, { active: true });
-        });
-    });
-})();
+            // Kiểm tra nếu có logo Medium gần đó
+            const parent = link.closest('div')
+            if (parent) {
+                const mediumLogo = parent.querySelector(
+                    'svg path[fill="#242424"]'
+                )
+                if (mediumLogo) return true
+            }
+        } catch (error) {
+            return false
+        }
+        return false
+    }
+
+    function detectMediumLogo() {
+        return !!document.querySelector(
+            'a[data-testid="headerMediumLogo"] svg path[fill="#242424"]'
+        )
+    }
+
+    function createUnlockButton() {
+        const btn = document.createElement('button')
+        btn.innerText = '🔓 Unlock'
+        btn.style.position = 'fixed'
+        btn.style.bottom = '20px'
+        btn.style.right = '20px'
+        btn.style.zIndex = '1000'
+        btn.style.padding = '10px 15px'
+        btn.style.cursor = 'pointer'
+        btn.style.fontSize = '14px'
+        btn.style.color = '#fff'
+        btn.style.backgroundColor = '#1a8917'
+        btn.style.border = 'none'
+        btn.style.borderRadius = '5px'
+        btn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)'
+
+        btn.addEventListener('click', () => {
+            openMediumRestWithUrl(window.location.href)
+        })
+
+        document.body.appendChild(btn)
+    }
+
+    document.querySelectorAll('a[href]').forEach((link) => {
+        if (isMediumArticle(link)) {
+            link.addEventListener('click', (event) => {
+                event.preventDefault()
+                openMediumRestWithUrl(link.href)
+            })
+        }
+    })
+
+    GM_registerMenuCommand('Unlock this Medium Article', () => {
+        openMediumRestWithUrl(location.href)
+    })
+
+    // Nếu phát hiện logo Medium ở góc trái trên cùng, hiển thị nút Unlock
+    if (detectMediumLogo()) {
+        createUnlockButton()
+    }
+})()
