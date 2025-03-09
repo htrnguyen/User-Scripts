@@ -1,7 +1,3 @@
-Chắc chắn, dưới đây là một README chuyên nghiệp cho script **Text Summarizer with Gemini API** dựa trên thông tin bạn cung cấp:
-
----
-
 # Text Summarizer with Gemini API
 
 ![Logo](https://github.com/htrnguyen/User-Scripts/raw/main/Text-Summarizer-with-Gemini-API/text-summarizer-logo.png)
@@ -67,7 +63,3 @@ Dự án này được cấp phép dưới **Giấy phép MIT**. Xem file [LICEN
 **Tác giả**: [Hà Trọng Nguyễn (htrnguyen)](https://github.com/htrnguyen)  
 **GitHub Repository**: [Text Summarizer with Gemini API](https://github.com/htrnguyen/User-Scripts/tree/main/Text-Summarizer-with-Gemini-API)  
 **Greasy Fork**: [Text Summarizer with Gemini API](https://greasyfork.org/vi/scripts/529267-text-summarizer-with-gemini-api)
-
----
-
-Hy vọng README này sẽ giúp bạn trình bày script một cách chuyên nghiệp và rõ ràng. Nếu cần thêm bất kỳ chỉnh sửa nào, hãy cho tôi biết!
