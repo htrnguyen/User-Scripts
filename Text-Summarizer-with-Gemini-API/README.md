@@ -11,9 +11,6 @@
 
 - **Tóm tắt văn bản**: Tự động tóm tắt văn bản được chọn khi nhấn phím tắt `Alt + T` (nhấn đúp).
 - **Giao diện thân thiện**: Giao diện popup dễ nhìn, dễ sử dụng với các nút cài đặt và đóng.
-- **Căn giữa các phần**: Ô nhập API key và nút lưu được căn giữa màn hình.
-- **Icon tùy ý**: Sử dụng biểu tượng SVG để đảm bảo icon bánh răng hiển thị chính xác và không phụ thuộc vào Font Awesome.
-- **Thông báo chi tiết**: Hiển thị thông báo thành công khi lưu API key và thông báo lỗi chi tiết khi gặp vấn đề.
 
 ## Yêu Cầu Hệ Thống
 
@@ -39,16 +36,6 @@
 ## Demo
 
 ![Demo](https://github.com/htrnguyen/User-Scripts/raw/main/Text-Summarizer-with-Gemini-API/DEMO.png)
-
-## Phiên Bản 1.22
-
-Phiên bản này cải tiến giao diện người dùng (UI) và trải nghiệm người dùng (UX):
-
-- **Căn giữa các phần**: Ô nhập API key và nút lưu được căn giữa màn hình.
-- **Icon tùy ý**: Sử dụng biểu tượng SVG thay vì Font Awesome.
-- **Hiệu ứng hover và click**: Thêm hiệu ứng để người dùng biết được khi tương tác.
-- **Tooltip**: Thêm tooltip cho nút cài đặt để giải thích chức năng của nó.
-- **Mở rộng chiều rộng và chiều cao của popup**: Đảm bảo giao diện rộng rãi và dễ nhìn.
 
 ## Hỗ Trợ
 
