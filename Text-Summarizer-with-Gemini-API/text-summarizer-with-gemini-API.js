@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Text Summarizer with Gemini API
 // @namespace    http://tampermonkey.net/
-// @version      1.22
+// @version      1.23
 // @description  Summarize selected text using Gemini 2.0 Flash API
 // @author       Hà Trọng Nguyễn
 // @match        *://*/*
@@ -13,102 +13,119 @@
 // @supportURL   https://github.com/htrnguyen/Text-Summarizer-with-Gemini-API/issues
 // @icon         https://github.com/htrnguyen/User-Scripts/raw/main/Text-Summarizer-with-Gemini-API/text-summarizer-logo.png
 // @license      MIT
+// @downloadURL https://update.greasyfork.org/scripts/529267/Text%20Summarizer%20with%20Gemini%20API.user.js
+// @updateURL https://update.greasyfork.org/scripts/529267/Text%20Summarizer%20with%20Gemini%20API.meta.js
 // ==/UserScript==
-(function () {
-    'use strict';
-    let lastKeyTime = 0;
-    let popup = null;
-    let overlay = null;
-    let isDragging = false;
-    let isResizing = false;
-    let offsetX, offsetY;
-    let resizeOffsetX, resizeOffsetY;
-    let initialWidth, initialHeight;
+;(function () {
+    'use strict'
+
+    let lastKeyTime = 0
+    let popup = null
+    let isDragging = false
+    let isResizing = false
+    let offsetX, offsetY
+    let resizeOffsetX, resizeOffsetY
+    let initialWidth, initialHeight
 
     // Kiểm tra xem API key đã được lưu chưa
-    const API_KEY = GM_getValue('geminiApiKey', '');
+    const API_KEY = GM_getValue('geminiApiKey', '')
     if (!API_KEY) {
-        showApiKeyPrompt();
+        showApiKeyPrompt()
     }
 
     // ✅ Lắng nghe phím Alt + T (nhấn đúp)
     document.addEventListener('keydown', function (e) {
         if (e.altKey && e.key === 't') {
-            const currentTime = new Date().getTime();
+            const currentTime = new Date().getTime()
             if (currentTime - lastKeyTime < 500) {
-                e.preventDefault();
-                const selectedText = window.getSelection().toString().trim();
+                e.preventDefault()
+                const selectedText = window.getSelection().toString().trim()
                 if (selectedText) {
-                    summarizeTextWithGemini(selectedText);
+                    summarizeTextWithGemini(selectedText)
                 } else {
-                    showPopup('Lỗi', 'Vui lòng chọn văn bản để tóm tắt!');
+                    showPopup('Lỗi', 'Vui lòng chọn văn bản để tóm tắt!')
                 }
             }
-            lastKeyTime = currentTime;
+            lastKeyTime = currentTime
         }
-    });
+    })
 
     // ✅ Gửi văn bản đến API Gemini 2.0 Flash
     function summarizeTextWithGemini(text) {
-        showLoader();
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
-        const prompt = `Tóm tắt nội dung sau đây, đảm bảo giữ lại các ý chính và chi tiết quan trọng, tránh lược bỏ quá nhiều. Kết quả cần có xuống dòng và bố cục hợp lý để dễ đọc. Chỉ bao gồm thông tin cần tóm tắt, không thêm phần thừa như 'dưới đây là tóm tắt' hoặc lời dẫn. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể thêm emoji (🌟, ➡️, 1️⃣) để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế và sử dụng một cách tinh tế. Nội dung cần tóm tắt là: ${text}`;
+        showLoader()
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`
+        const prompt = `Tóm tắt nội dung sau đây, đảm bảo giữ lại các ý chính và chi tiết quan trọng, tránh lược bỏ quá nhiều. Kết quả cần có xuống dòng và bố cục hợp lý để dễ đọc. Chỉ bao gồm thông tin cần tóm tắt, không thêm phần thừa như 'dưới đây là tóm tắt' hoặc lời dẫn. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể thêm emoji (🌟, ➡️, 1️⃣) để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế và sử dụng một cách tinh tế. Nội dung cần tóm tắt là: ${text}`
         const requestBody = {
-            contents: [{ parts: [{ text: prompt }] }]
-        };
+            contents: [{parts: [{text: prompt}]}],
+        }
         GM_xmlhttpRequest({
-            method: "POST",
+            method: 'POST',
             url: apiUrl,
-            headers: { "Content-Type": "application/json" },
+            headers: {'Content-Type': 'application/json'},
             data: JSON.stringify(requestBody),
             onload: function (response) {
-                hideLoader();
+                hideLoader()
                 if (!response.responseText) {
-                    showPopup('Lỗi', 'Không có phản hồi từ API. Kiểm tra API Key hoặc thử lại sau.');
-                    return;
+                    showPopup(
+                        'Lỗi',
+                        'Không có phản hồi từ API. Kiểm tra API Key hoặc thử lại sau.'
+                    )
+                    return
                 }
                 try {
-                    const result = JSON.parse(response.responseText);
+                    const result = JSON.parse(response.responseText)
                     if (result.candidates && result.candidates.length > 0) {
-                        const summary = result.candidates[0]?.content?.parts[0]?.text || 'Không thể tóm tắt!';
-                        showPopup('Tóm tắt', summary);
+                        const summary =
+                            result.candidates[0]?.content?.parts[0]?.text ||
+                            'Không thể tóm tắt!'
+                        showPopup('Tóm tắt', summary)
                     } else if (result.error) {
-                        handleApiError(result.error);
+                        handleApiError(result.error)
                     } else {
-                        showPopup('Lỗi', 'Phản hồi không hợp lệ từ API.');
+                        showPopup('Lỗi', 'Phản hồi không hợp lệ từ API.')
                     }
                 } catch (error) {
-                    showPopup('Lỗi', `Lỗi xử lý dữ liệu: ${error.message}<br>Phản hồi API: ${response.responseText}`);
+                    showPopup(
+                        'Lỗi',
+                        `Lỗi xử lý dữ liệu: ${error.message}<br>Phản hồi API: ${response.responseText}`
+                    )
                 }
             },
             onerror: function (err) {
-                hideLoader();
-                showPopup('Lỗi', `Lỗi kết nối API.`);
+                hideLoader()
+                showPopup('Lỗi', `Lỗi kết nối API.`)
             },
             timeout: 10000,
             ontimeout: function () {
-                hideLoader();
-                showPopup('Lỗi', 'Yêu cầu đến API bị timeout. Vui lòng thử lại sau.');
-            }
-        });
+                hideLoader()
+                showPopup(
+                    'Lỗi',
+                    'Yêu cầu đến API bị timeout. Vui lòng thử lại sau.'
+                )
+            },
+        })
     }
 
     function handleApiError(error) {
-        if (error.code === 403 && error.message.includes('Method doesn\'t allow unregistered callers')) {
-            showPopup('Lỗi', 'API key không hợp lệ hoặc chưa được đăng ký. Vui lòng kiểm tra lại API key của bạn.');
+        if (
+            error.code === 403 &&
+            error.message.includes("Method doesn't allow unregistered callers")
+        ) {
+            showPopup(
+                'Lỗi',
+                'API key không hợp lệ hoặc chưa được đăng ký. Vui lòng kiểm tra lại API key của bạn.'
+            )
         } else {
-            showPopup('Lỗi', `API trả về lỗi: ${error.message}`);
+            showPopup('Lỗi', `API trả về lỗi: ${error.message}`)
         }
     }
 
     function showPopup(title, content) {
-        if (popup) closePopup();
-        // Tạo overlay
-        overlay = document.createElement('div');
-        overlay.className = 'overlay';
-        document.body.appendChild(overlay);
-        popup = document.createElement('div');
-        popup.className = 'popup';
+        if (popup) closePopup()
+
+        // Tạo popup
+        popup = document.createElement('div')
+        popup.className = 'popup'
         popup.innerHTML = `
             <div class="popup-header" draggable="true">
                 <h2>${title}</h2>
@@ -123,82 +140,87 @@
             </div>
             <div class="popup-content" id="popupContent">${content}</div>
             <div class="resize-handle"></div>
-        `;
+        `
+
         // In ra HTML trước khi thêm vào body
-        console.log('HTML trước khi thêm vào body:', popup.innerHTML);
-        document.body.appendChild(popup);
-        document.querySelector('.close-btn').onclick = closePopup;
-        document.querySelector('.settings-btn').onclick = showApiKeyPrompt;
-        document.addEventListener('keydown', handleEscKey);
+        console.log('HTML trước khi thêm vào body:', popup.innerHTML)
+        document.body.appendChild(popup)
+
+        document.querySelector('.close-btn').onclick = closePopup
+        document.querySelector('.settings-btn').onclick = showApiKeyPrompt
+        document.addEventListener('keydown', handleEscKey)
+
         // Thêm sự kiện drag
-        const header = document.querySelector('.popup-header');
-        header.addEventListener('mousedown', startDrag);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
+        const header = document.querySelector('.popup-header')
+        header.addEventListener('mousedown', startDrag)
+        document.addEventListener('mousemove', drag)
+        document.addEventListener('mouseup', stopDrag)
+
         // Thêm sự kiện resize
-        const resizeHandle = document.querySelector('.resize-handle');
-        resizeHandle.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
+        const resizeHandle = document.querySelector('.resize-handle')
+        resizeHandle.addEventListener('mousedown', startResize)
+        document.addEventListener('mousemove', resize)
+        document.addEventListener('mouseup', stopResize)
+
         // Tự động đóng popup khi nhấp bên ngoài
         popup.onclick = function (event) {
             if (event.target === popup) {
-                closePopup();
+                closePopup()
             }
-        };
+        }
+
         // In ra console khi hiển thị nút cài đặt
-        console.log('Nút cài đặt đã được hiển thị');
+        console.log('Nút cài đặt đã được hiển thị')
     }
 
     function startDrag(e) {
-        isDragging = true;
-        offsetX = e.clientX - popup.offsetLeft;
-        offsetY = e.clientY - popup.offsetTop;
+        isDragging = true
+        offsetX = e.clientX - popup.offsetLeft
+        offsetY = e.clientY - popup.offsetTop
     }
 
     function drag(e) {
         if (isDragging) {
-            popup.style.left = `${e.clientX - offsetX}px`;
-            popup.style.top = `${e.clientY - offsetY}px`;
+            popup.style.left = `${e.clientX - offsetX}px`
+            popup.style.top = `${e.clientY - offsetY}px`
         }
     }
 
     function stopDrag() {
-        isDragging = false;
+        isDragging = false
     }
 
     function startResize(e) {
-        isResizing = true;
-        initialWidth = popup.offsetWidth;
-        initialHeight = popup.offsetHeight;
-        resizeOffsetX = e.clientX - popup.offsetLeft;
-        resizeOffsetY = e.clientY - popup.offsetTop;
+        isResizing = true
+        initialWidth = popup.offsetWidth
+        initialHeight = popup.offsetHeight
+        resizeOffsetX = e.clientX - popup.offsetLeft
+        resizeOffsetY = e.clientY - popup.offsetTop
     }
 
     function resize(e) {
         if (isResizing) {
-            const newWidth = initialWidth + (e.clientX - (popup.offsetLeft + resizeOffsetX));
-            const newHeight = initialHeight + (e.clientY - (popup.offsetTop + resizeOffsetY));
-            popup.style.width = `${newWidth}px`;
-            popup.style.height = `${newHeight}px`;
-            const content = document.querySelector('.popup-content');
-            content.style.maxHeight = `${newHeight - 80}px`; // 80px là chiều cao của header và resize handle
+            const newWidth =
+                initialWidth + (e.clientX - (popup.offsetLeft + resizeOffsetX))
+            const newHeight =
+                initialHeight + (e.clientY - (popup.offsetTop + resizeOffsetY))
+            popup.style.width = `${newWidth}px`
+            popup.style.height = `${newHeight}px`
+            const content = document.querySelector('.popup-content')
+            content.style.maxHeight = `${newHeight - 80}px` // 80px là chiều cao của header và resize handle
         }
     }
 
     function stopResize() {
-        isResizing = false;
+        isResizing = false
     }
 
     function showApiKeyPrompt() {
-        if (popup) closePopup();
-        // Tạo overlay
-        overlay = document.createElement('div');
-        overlay.className = 'overlay';
-        document.body.appendChild(overlay);
+        if (popup) closePopup()
+
         // Tạo popup nhập API key
-        popup = document.createElement('div');
-        popup.className = 'popup';
+        popup = document.createElement('div')
+        popup.className = 'popup'
         popup.innerHTML = `
             <div class="popup-header" draggable="true">
                 <h2>Nhập API Key</h2>
@@ -214,77 +236,67 @@
                 </div>
             </div>
             <div class="resize-handle"></div>
-        `;
-        document.body.appendChild(popup);
-        document.querySelector('.close-btn').onclick = closePopup;
-        document.querySelector('.save-btn').onclick = saveApiKey;
-        document.getElementById('apiKeyInput').focus();
-        document.addEventListener('keydown', handleEscKey);
+        `
+        document.body.appendChild(popup)
+
+        document.querySelector('.close-btn').onclick = closePopup
+        document.querySelector('.save-btn').onclick = saveApiKey
+        document.getElementById('apiKeyInput').focus()
+        document.addEventListener('keydown', handleEscKey)
+
         // Thêm sự kiện drag
-        const header = document.querySelector('.popup-header');
-        header.addEventListener('mousedown', startDrag);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
+        const header = document.querySelector('.popup-header')
+        header.addEventListener('mousedown', startDrag)
+        document.addEventListener('mousemove', drag)
+        document.addEventListener('mouseup', stopDrag)
+
         // Thêm sự kiện resize
-        const resizeHandle = document.querySelector('.resize-handle');
-        resizeHandle.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
+        const resizeHandle = document.querySelector('.resize-handle')
+        resizeHandle.addEventListener('mousedown', startResize)
+        document.addEventListener('mousemove', resize)
+        document.addEventListener('mouseup', stopResize)
     }
 
     function saveApiKey() {
-        const apiKey = document.getElementById('apiKeyInput').value.trim();
+        const apiKey = document.getElementById('apiKeyInput').value.trim()
         if (apiKey) {
-            GM_setValue('geminiApiKey', apiKey);
-            closePopup();
-            showPopup('Thông Báo', 'API Key đã được lưu thành công!');
+            GM_setValue('geminiApiKey', apiKey)
+            closePopup()
+            showPopup('Thông Báo', 'API Key đã được lưu thành công!')
         } else {
-            showPopup('Lỗi', 'API key không được để trống!');
+            showPopup('Lỗi', 'API key không được để trống!')
         }
     }
 
     function showLoader() {
-        const loader = document.createElement('div');
-        loader.className = 'loader';
-        loader.innerHTML = '<div class="spinner"></div>';
-        document.body.appendChild(loader);
+        const loader = document.createElement('div')
+        loader.className = 'loader'
+        loader.innerHTML = '<div class="spinner"></div>'
+        document.body.appendChild(loader)
     }
 
     function hideLoader() {
-        const loader = document.querySelector('.loader');
-        if (loader) loader.remove();
+        const loader = document.querySelector('.loader')
+        if (loader) loader.remove()
     }
 
     function closePopup() {
         if (popup) {
-            popup.remove();
-            popup = null;
+            popup.remove()
+            popup = null
         }
-        if (overlay) {
-            overlay.remove();
-            overlay = null;
-        }
-        document.removeEventListener('keydown', handleEscKey);
+        document.removeEventListener('keydown', handleEscKey)
     }
 
     function handleEscKey(e) {
         if (e.key === 'Escape') {
-            closePopup();
+            closePopup()
         }
     }
 
     // CSS Styles
-    const style = document.createElement('style');
+    const style = document.createElement('style')
     style.innerHTML = `
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 9998;
-        }
         .popup {
             position: fixed;
             top: 50%;
@@ -299,6 +311,7 @@
             z-index: 9999;
             font-family: 'Roboto', sans-serif;
             overflow: hidden;
+            pointer-events: auto; /* Cho phép tương tác với popup */
         }
         .popup-header {
             background: #4A90E2;
@@ -457,6 +470,6 @@
             visibility: visible;
             opacity: 1;
         }
-    `;
-    document.head.appendChild(style);
-})();
+    `
+    document.head.appendChild(style)
+})()
