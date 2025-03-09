@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Text Summarizer with Gemini API
 // @namespace    http://tampermonkey.net/
-// @version      1.33
+// @version      2.1
 // @description  Summarize selected text using Gemini 2.0 Flash API
 // @author       Hà Trọng Nguyễn
 // @match        *://*/*
@@ -14,429 +14,499 @@
 // @supportURL   https://github.com/htrnguyen/Text-Summarizer-with-Gemini-API/issues
 // @icon         https://github.com/htrnguyen/User-Scripts/raw/main/Text-Summarizer-with-Gemini-API/text-summarizer-logo.png
 // @license      MIT
-// @downloadURL https://update.greasyfork.org/scripts/529267/Text%20Summarizer%20with%20Gemini%20API.user.js
-// @updateURL https://update.greasyfork.org/scripts/529267/Text%20Summarizer-with-Gemini%20API.meta.js
+// @downloadURL  https://update.greasyfork.org/scripts/529267/Text%20Summarizer%20with%20Gemini%20API.user.js
+// @updateURL    https://update.greasyfork.org/scripts/529267/Text%20Summarizer-with-Gemini%20API.meta.js
 // ==/UserScript==
-(function () {
-    'use strict';
-    let lastKeyTime = 0;
-    let popup = null;
-    let isDragging = false;
-    let isResizing = false;
-    let offsetX, offsetY;
-    let resizeOffsetX, resizeOffsetY;
-    let initialWidth, initialHeight;
-    // Kiểm tra xem API key đã được lưu chưa
-    const API_KEY = GM_getValue('geminiApiKey', '');
-    if (!API_KEY) {
-        showApiKeyPrompt();
-    }
-    // Lấy các phím tắt từ GM_getValue
-    const shortcutKey = GM_getValue('shortcutKey', 't');
-    const modifierKeys = GM_getValue('modifierKeys', ['Alt']);
-    // ✅ Lắng nghe phím tắt tùy chỉnh
-    document.addEventListener('keydown', function (e) {
-        if (checkShortcut(e)) {
-            e.preventDefault();
-            const selectedText = window.getSelection().toString().trim();
-            if (selectedText) {
-                summarizeTextWithGemini(selectedText);
-            } else {
-                showPopup('Lỗi', 'Vui lòng chọn văn bản để tóm tắt!');
-            }
+
+;(function () {
+    'use strict'
+
+    // Khai báo biến toàn cục
+    let API_KEY = GM_getValue('geminiApiKey', '') || ''
+    let shortcutKey = GM_getValue('shortcutKey', 't')
+    let modifierKeys = JSON.parse(GM_getValue('modifierKeys', '["Alt"]')) || [
+        'Alt',
+    ]
+    let currentPopup = null
+    let isDragging = false
+    let isResizing = false
+    let offsetX, offsetY, resizeOffsetX, initialWidth
+
+    // Hàm khởi tạo
+    function initialize() {
+        if (!API_KEY) {
+            showPopup('Cài đặt', getSettingsContent())
         }
-    });
+        setupEventListeners()
+    }
+
+    // Thiết lập các sự kiện
+    function setupEventListeners() {
+        document.addEventListener('keydown', handleKeydown)
+        if (typeof GM_registerMenuCommand !== 'undefined') {
+            GM_registerMenuCommand('Cài đặt Text Summarizer', () =>
+                showPopup('Cài đặt', getSettingsContent())
+            )
+        }
+    }
+
+    // Kiểm tra phím tắt
     function checkShortcut(e) {
-        const key = e.key.toLowerCase();
-        const modifiers = modifierKeys.map(mod => mod.toLowerCase());
-        const currentModifiers = [];
-        if (e.altKey) currentModifiers.push('alt');
-        if (e.ctrlKey) currentModifiers.push('ctrl');
-        if (e.shiftKey) currentModifiers.push('shift');
-        return key === shortcutKey.toLowerCase() && currentModifiers.sort().join(',') === modifiers.sort().join(',');
+        const key = e.key.toLowerCase()
+        const modifiers = modifierKeys.map((mod) => mod.toLowerCase())
+        const currentModifiers = []
+        if (e.altKey) currentModifiers.push('alt')
+        if (e.ctrlKey) currentModifiers.push('ctrl')
+        if (e.shiftKey) currentModifiers.push('shift')
+        return (
+            key === shortcutKey &&
+            currentModifiers.sort().join(',') === modifiers.sort().join(',')
+        )
     }
-    // ✅ Gửi văn bản đến API Gemini 2.0 Flash
-    function summarizeTextWithGemini(text) {
-        showLoader();
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
-        const prompt = `Tóm tắt nội dung sau đây, đảm bảo giữ lại các ý chính và chi tiết quan trọng, tránh lược bỏ quá nhiều. Kết quả cần có xuống dòng và bố cục hợp lý để dễ đọc. Chỉ bao gồm thông tin cần tóm tắt, không thêm phần thừa như 'dưới đây là tóm tắt' hoặc lời dẫn. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể thêm emoji (🌟, ➡️, 1️⃣) để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế và sử dụng một cách tinh tế. Nội dung cần tóm tắt là: ${text}`;
-        const requestBody = {
-            contents: [{ parts: [{ text: prompt }] }]
-        };
-        GM_xmlhttpRequest({
-            method: "POST",
-            url: apiUrl,
-            headers: { "Content-Type": "application/json" },
-            data: JSON.stringify(requestBody),
-            onload: function (response) {
-                hideLoader();
-                if (!response.responseText) {
-                    showPopup('Lỗi', 'Không có phản hồi từ API. Kiểm tra API Key hoặc thử lại sau.');
-                    return;
-                }
-                try {
-                    const result = JSON.parse(response.responseText);
-                    if (result.candidates && result.candidates.length > 0) {
-                        const summary = result.candidates[0]?.content?.parts[0]?.text || 'Không thể tóm tắt!';
-                        showPopup('Tóm tắt', summary);
-                    } else if (result.error) {
-                        handleApiError(result.error);
-                    } else {
-                        showPopup('Lỗi', 'Phản hồi không hợp lệ từ API.');
-                    }
-                } catch (error) {
-                    showPopup('Lỗi', `Lỗi xử lý dữ liệu: ${error.message}<br>Phản hồi API: ${response.responseText}`);
-                }
-            },
-            onerror: function (err) {
-                hideLoader();
-                showPopup('Lỗi', `Lỗi kết nối API.`);
-            },
-            timeout: 10000,
-            ontimeout: function () {
-                hideLoader();
-                showPopup('Lỗi', 'Yêu cầu đến API bị timeout. Vui lòng thử lại sau.');
+
+    // Xử lý phím tắt và ESC
+    function handleKeydown(e) {
+        if (checkShortcut(e)) {
+            e.preventDefault()
+            const selectedText = window.getSelection().toString().trim()
+            if (selectedText) {
+                summarizeText(selectedText)
+            } else {
+                showPopup(
+                    'Lỗi',
+                    'Vui lòng chọn một đoạn văn bản để tóm tắt nhé!'
+                )
             }
-        });
-    }
-    function handleApiError(error) {
-        if (error.code === 403 && error.message.includes('Method doesn\'t allow unregistered callers')) {
-            showPopup('Lỗi', 'API key không hợp lệ hoặc chưa được đăng ký. Vui lòng kiểm tra lại API key của bạn.');
-        } else {
-            showPopup('Lỗi', `API trả về lỗi: ${error.message}`);
+        } else if (e.key === 'Escape' && currentPopup) {
+            closePopup()
         }
     }
+
+    // Gửi yêu cầu đến Gemini API
+    function summarizeText(text) {
+        showLoader()
+        GM_xmlhttpRequest({
+            method: 'POST',
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+            headers: {'Content-Type': 'application/json'},
+            data: JSON.stringify({
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: `Tóm tắt nội dung sau đây, đảm bảo giữ lại các ý chính và chi tiết quan trọng, tránh lược bỏ quá nhiều. Kết quả cần có xuống dòng và bố cục hợp lý để dễ đọc. Chỉ bao gồm thông tin cần tóm tắt, không thêm phần thừa như 'dưới đây là tóm tắt' hoặc lời dẫn. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể thêm emoji (🌟, ➡️, 1️⃣) để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế và sử dụng một cách tinh tế. Nội dung cần tóm tắt là: ${text}`,
+                            },
+                        ],
+                    },
+                ],
+            }),
+            onload: function (response) {
+                hideLoader()
+                const data = JSON.parse(response.responseText)
+                if (data.candidates && data.candidates.length > 0) {
+                    const summary =
+                        data.candidates[0].content.parts[0].text ||
+                        'Không thể tóm tắt được nội dung này!'
+                    showPopup('Tóm tắt', summary)
+                } else if (data.error) {
+                    showPopup('Lỗi', `Có lỗi từ API: ${data.error.message}`)
+                } else {
+                    showPopup(
+                        'Lỗi',
+                        'Phản hồi từ API không hợp lệ. Hãy thử lại!'
+                    )
+                }
+            },
+            onerror: function (error) {
+                hideLoader()
+                showPopup(
+                    'Lỗi',
+                    `Lỗi kết nối: ${error.message}. Kiểm tra mạng nhé!`
+                )
+            },
+        })
+    }
+
+    // Hiển thị popup duy nhất
     function showPopup(title, content) {
-        if (popup) closePopup();
-        // Tạo popup
-        popup = document.createElement('div');
-        popup.className = 'popup';
-        popup.innerHTML = `
-            <div class="popup-header" draggable="true">
+        closePopup() // Đóng popup cũ trước khi mở mới
+
+        currentPopup = document.createElement('div')
+        currentPopup.className = 'summarizer-popup'
+        currentPopup.innerHTML = `
+            <div class="popup-header">
                 <h2>${title}</h2>
                 <div class="header-actions">
-                    <button class="settings-btn" title="Cài đặt">
-                        <svg class="cog-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm-.75-6.25l-.016-.014a.75.75 0 00-.982.114l-2.25 2.25a.75.75 0 001.06 1.06l2.25-2.25a.75.75 0 00.114-.982zM12 4.5a7.5 7.5 0 110 15 7.5 7.5 0 010-15zm0 1a6.5 6.5 0 100 13 6.5 6.5 0 000-13z"/>
-                        </svg>
-                    </button>
                     <button class="close-btn">×</button>
                 </div>
             </div>
-            <div class="popup-content-summary" id="popupContent">${content}</div>
+            <div class="${
+                title === 'Tóm tắt' ? 'popup-content-summary' : 'popup-content'
+            }">${content}</div>
             <div class="resize-handle"></div>
-        `;
-        // In ra HTML trước khi thêm vào body
-        console.log('HTML trước khi thêm vào body:', popup.innerHTML);
-        document.body.appendChild(popup);
-        document.querySelector('.close-btn').onclick = closePopup;
-        document.querySelector('.settings-btn').onclick = showApiKeyPrompt;
-        document.addEventListener('keydown', handleEscKey);
-        // Thêm sự kiện drag
-        const header = document.querySelector('.popup-header');
-        header.addEventListener('mousedown', startDrag);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
-        // Thêm sự kiện resize
-        const resizeHandle = document.querySelector('.resize-handle');
-        resizeHandle.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
-        // Vô hiệu hóa các sự kiện chuột phía sau
-        document.body.style.pointerEvents = 'none';
-        popup.style.pointerEvents = 'auto';
-        // Đảm bảo chiều cao của popup phù hợp
-        adjustPopupHeight();
+        `
+        document.body.appendChild(currentPopup)
+
+        currentPopup.style.opacity = '0'
+        currentPopup.style.transform = 'translate(-50%, -50%) scale(0.9)'
+        setTimeout(() => {
+            currentPopup.style.opacity = '1'
+            currentPopup.style.transform = 'translate(-50%, -50%) scale(1)'
+        }, 10)
+
+        currentPopup
+            .querySelector('.close-btn')
+            .addEventListener('click', closePopup)
+
+        if (title === 'Cài đặt') {
+            const saveBtn = currentPopup.querySelector('.save-btn')
+            if (saveBtn) saveBtn.addEventListener('click', saveSettings)
+        }
+
+        const header = currentPopup.querySelector('.popup-header')
+        header.addEventListener('mousedown', startDrag)
+        document.addEventListener('mousemove', drag)
+        document.addEventListener('mouseup', stopDrag)
+
+        const resizeHandle = currentPopup.querySelector('.resize-handle')
+        resizeHandle.addEventListener('mousedown', startResize)
+        document.addEventListener('mousemove', resize)
+        document.addEventListener('mouseup', stopResize)
+
+        document.body.style.pointerEvents = 'none'
+        currentPopup.style.pointerEvents = 'auto'
     }
-    function adjustPopupHeight() {
-        const content = document.querySelector('.popup-content-summary');
-        const header = document.querySelector('.popup-header');
-        const resizeHandle = document.querySelector('.resize-handle');
-        const maxHeight = window.innerHeight - 100; // Giảm 100px để có khoảng cách từ trên xuống
-        const headerHeight = header.offsetHeight;
-        const resizeHandleHeight = resizeHandle.offsetHeight;
-        const availableHeight = maxHeight - headerHeight - resizeHandleHeight;
-        popup.style.maxHeight = `${maxHeight}px`;
-        content.style.maxHeight = `${availableHeight}px`;
-        content.style.overflowY = 'auto';
+
+    // Lấy nội dung cài đặt
+    function getSettingsContent() {
+        return `
+            <div class="settings-container">
+                <div class="settings-item">
+                    <label>API Key:</label>
+                    <input type="text" id="apiKeyInput" placeholder="Dán API key vào đây" value="${API_KEY}" />
+                </div>
+                <div class="settings-item instruction">
+                    <span>Lấy key tại: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a></span>
+                </div>
+                <div class="settings-item shortcut-section">
+                    <label>Phím tắt:</label>
+                    <div class="shortcut-controls">
+                        <label><input type="radio" name="modifier" value="Alt" ${
+                            modifierKeys.includes('Alt') ? 'checked' : ''
+                        }> Alt</label>
+                        <label><input type="radio" name="modifier" value="Ctrl" ${
+                            modifierKeys.includes('Ctrl') ? 'checked' : ''
+                        }> Ctrl</label>
+                        <label><input type="radio" name="modifier" value="Shift" ${
+                            modifierKeys.includes('Shift') ? 'checked' : ''
+                        }> Shift</label>
+                        <input type="text" id="shortcutKey" maxlength="1" placeholder="T" value="${shortcutKey.toUpperCase()}" />
+                    </div>
+                </div>
+                <div class="settings-item button-container">
+                    <button class="save-btn">
+                        <svg class="save-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                            <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                        </svg>
+                        Lưu
+                    </button>
+                </div>
+            </div>
+        `
     }
+
+    // Lưu cài đặt và làm mới trang
+    function saveSettings() {
+        const apiKey = document.getElementById('apiKeyInput').value.trim()
+        const selectedModifier = document.querySelector(
+            'input[name="modifier"]:checked'
+        )
+        shortcutKey = document
+            .getElementById('shortcutKey')
+            .value.trim()
+            .toLowerCase()
+
+        if (!apiKey) {
+            showPopup('Lỗi', 'Bạn chưa nhập API key! Hãy nhập để tiếp tục.')
+            return
+        }
+        if (!shortcutKey) {
+            showPopup('Lỗi', 'Bạn chưa nhập phím tắt! Hãy nhập một ký tự.')
+            return
+        }
+        if (!selectedModifier) {
+            showPopup(
+                'Lỗi',
+                'Bạn chưa chọn phím bổ trợ! Chọn Alt, Ctrl hoặc Shift.'
+            )
+            return
+        }
+
+        modifierKeys = [selectedModifier.value]
+        GM_setValue('geminiApiKey', apiKey)
+        GM_setValue('shortcutKey', shortcutKey)
+        GM_setValue('modifierKeys', JSON.stringify(modifierKeys))
+        API_KEY = apiKey
+        closePopup()
+        showPopup(
+            'Thành công',
+            'Cài đặt đã được lưu! Trang sẽ làm mới sau 1 giây.'
+        )
+        setTimeout(() => location.reload(), 1000) // Làm mới trang để tránh bị kẹt
+    }
+
+    // Xử lý kéo popup
     function startDrag(e) {
-        isDragging = true;
-        offsetX = e.clientX - popup.offsetLeft;
-        offsetY = e.clientY - popup.offsetTop;
+        isDragging = true
+        offsetX = e.clientX - currentPopup.offsetLeft
+        offsetY = e.clientY - currentPopup.offsetTop
     }
+
     function drag(e) {
         if (isDragging) {
-            popup.style.left = `${e.clientX - offsetX}px`;
-            popup.style.top = `${e.clientY - offsetY}px`;
+            e.preventDefault()
+            currentPopup.style.left = `${e.clientX - offsetX}px`
+            currentPopup.style.top = `${e.clientY - offsetY}px`
         }
     }
+
     function stopDrag() {
-        isDragging = false;
+        isDragging = false
     }
+
+    // Xử lý thay đổi kích thước (chỉ chiều ngang)
     function startResize(e) {
-        isResizing = true;
-        initialWidth = popup.offsetWidth;
-        initialHeight = popup.offsetHeight;
-        resizeOffsetX = e.clientX - popup.offsetLeft;
-        resizeOffsetY = e.clientY - popup.offsetTop;
+        isResizing = true
+        initialWidth = currentPopup.offsetWidth
+        resizeOffsetX = e.clientX - currentPopup.offsetLeft
     }
+
     function resize(e) {
         if (isResizing) {
-            const newWidth = initialWidth + (e.clientX - (popup.offsetLeft + resizeOffsetX));
-            const newHeight = initialHeight + (e.clientY - (popup.offsetTop + resizeOffsetY));
-            popup.style.width = `${newWidth}px`;
-            popup.style.height = `${newHeight}px`;
-            adjustPopupHeight();
+            const newWidth =
+                initialWidth +
+                (e.clientX - (currentPopup.offsetLeft + resizeOffsetX))
+            currentPopup.style.width = `${Math.max(newWidth, 400)}px`
         }
     }
+
     function stopResize() {
-        isResizing = false;
+        isResizing = false
     }
-    function showApiKeyPrompt() {
-        if (popup) closePopup();
-        // Tạo popup nhập API key và cài đặt phím tắt
-        popup = document.createElement('div');
-        popup.className = 'popup';
-        popup.innerHTML = `
-            <div class="popup-header" draggable="true">
-                <h2>Cài đặt</h2>
-                <div class="header-actions">
-                    <button class="close-btn">×</button>
-                </div>
-            </div>
-            <div class="popup-content">
-                <div class="setting-section">
-                    <div class="instruction">
-                        <p><strong>Hướng dẫn lấy API Key:</strong></p>
-                        <p>1. Truy cập <a href="https://aistudio.google.com/apikey" target="_blank">đây</a>.</p>
-                        <p>2. Đăng nhập tài khoản Google của bạn.</p>
-                        <p>3. Theo dõi hướng dẫn để tạo và lấy API Key.</p>
-                    </div>
-                    <label for="apiKeyInput">API Key:</label>
-                    <input type="text" id="apiKeyInput" placeholder="Nhập API key tại đây (ví dụ: AIza...)" value="${API_KEY}" />
-                </div>
-                <hr>
-                <div class="setting-section key-section">
-                    <label>Phím bổ trợ:</label>
-                    <select id="modifierKeys" multiple size="3">
-                        <option value="Alt" ${modifierKeys.includes('Alt') ? 'selected' : ''}>Alt</option>
-                        <option value="Ctrl" ${modifierKeys.includes('Ctrl') ? 'selected' : ''}>Ctrl</option>
-                        <option value="Shift" ${modifierKeys.includes('Shift') ? 'selected' : ''}>Shift</option>
-                    </select>
-                    <label>Phím tắt:</label>
-                    <select id="shortcutKey">
-                        ${'abcdefghijklmnopqrstuvwxyz'.split('').map(key => `<option value="${key}" ${key === shortcutKey ? 'selected' : ''}>${key.toUpperCase()}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="button-container">
-                    <button class="save-btn">Lưu</button>
-                </div>
-            </div>
-            <div class="resize-handle"></div>
-        `;
-        document.body.appendChild(popup);
-        document.querySelector('.close-btn').onclick = closePopup;
-        document.querySelector('.save-btn').onclick = saveSettings;
-        document.getElementById('apiKeyInput').focus();
-        document.addEventListener('keydown', handleEscKey);
-        // Thêm sự kiện drag
-        const header = document.querySelector('.popup-header');
-        header.addEventListener('mousedown', startDrag);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
-        // Thêm sự kiện resize
-        const resizeHandle = document.querySelector('.resize-handle');
-        resizeHandle.addEventListener('mousedown', startResize);
-        document.addEventListener('mousemove', resize);
-        document.addEventListener('mouseup', stopResize);
-        // Vô hiệu hóa các sự kiện chuột phía sau
-        document.body.style.pointerEvents = 'none';
-        popup.style.pointerEvents = 'auto';
-        // Đảm bảo chiều cao của popup phù hợp
-        adjustPopupHeight();
-    }
-    function saveSettings() {
-        const apiKey = document.getElementById('apiKeyInput').value.trim();
-        const shortcutKey = document.getElementById('shortcutKey').value;
-        const modifierKeys = Array.from(document.getElementById('modifierKeys').selectedOptions).map(option => option.value);
-        if (apiKey) {
-            GM_setValue('geminiApiKey', apiKey);
-        } else {
-            showPopup('Lỗi', 'API key không được để trống!');
-            return;
-        }
-        GM_setValue('shortcutKey', shortcutKey);
-        GM_setValue('modifierKeys', modifierKeys);
-        closePopup();
-        showPopup('Thông Báo', 'Cài đặt đã được lưu thành công!');
-    }
+
+    // Loader
     function showLoader() {
-        const loader = document.createElement('div');
-        loader.className = 'loader';
-        loader.innerHTML = '<div class="spinner"></div>';
-        document.body.appendChild(loader);
+        const loader = document.createElement('div')
+        loader.className = 'summarizer-loader'
+        loader.innerHTML = '<div class="spinner"></div>'
+        document.body.appendChild(loader)
     }
+
     function hideLoader() {
-        const loader = document.querySelector('.loader');
-        if (loader) loader.remove();
+        const loader = document.querySelector('.summarizer-loader')
+        if (loader) loader.remove()
     }
+
+    // Đóng popup
     function closePopup() {
-        if (popup) {
-            popup.remove();
-            popup = null;
+        if (currentPopup) {
+            currentPopup.style.opacity = '1'
+            currentPopup.style.transform = 'translate(-50%, -50%) scale(1)'
+            setTimeout(() => {
+                currentPopup.style.opacity = '0'
+                currentPopup.style.transform =
+                    'translate(-50%, -50%) scale(0.9)'
+                setTimeout(() => {
+                    currentPopup.remove()
+                    currentPopup = null
+                    document.body.style.pointerEvents = 'auto'
+                    document.removeEventListener('mousemove', drag)
+                    document.removeEventListener('mouseup', stopDrag)
+                }, 200)
+            }, 10)
         }
-        // Khôi phục sự kiện chuột cho body
-        document.body.style.pointerEvents = 'auto';
-        document.removeEventListener('keydown', handleEscKey);
     }
-    function handleEscKey(e) {
-        if (e.key === 'Escape') {
-            closePopup();
-        }
-    }
-    // Thêm nút cài đặt trong Tampermonkey
-    GM_registerMenuCommand('Cài đặt Text Summarizer', showApiKeyPrompt);
-    // CSS Styles
-    const style = document.createElement('style');
+
+    // CSS
+    const style = document.createElement('style')
     style.innerHTML = `
-        .popup {
+        .summarizer-popup {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             width: 500px;
             min-width: 400px;
-            min-height: 250px;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            height: 400px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
             z-index: 9999;
             font-family: 'Roboto', sans-serif;
             overflow: hidden;
-            pointer-events: auto;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            display: flex;
+            flex-direction: column;
         }
         .popup-header {
-            background: #4A90E2;
+            background: linear-gradient(135deg, #4A90E2, #357ABD);
             color: #fff;
-            padding: 15px;
+            padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             cursor: move;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            flex-shrink: 0;
         }
         .popup-header h2 {
             margin: 0;
-            font-size: 18px;
-            font-weight: bold;
+            font-size: 20px;
+            font-weight: 600;
             text-align: center;
             line-height: 1.0;
         }
         .header-actions {
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
         .header-actions button {
             background: none;
             border: none;
             color: #fff;
-            font-size: 20px;
+            font-size: 22px;
             cursor: pointer;
-            transition: opacity 0.3s;
+            transition: transform 0.2s ease, opacity 0.2s ease;
         }
         .header-actions button:hover {
-            opacity: 0.7;
+            transform: scale(1.1);
+            opacity: 0.9;
         }
         .popup-content {
-            padding: 10px;
-            font-size: 14px;
-            color: #333;
-            line-height: 1.0;
-            overflow-y: auto;
-            white-space: pre-wrap; /* Đảm bảo xuống dòng */
+            padding: 15px;
+            font-size: 15px;
+            color: #444;
+            line-height: 1.2;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
         .popup-content-summary {
-            padding: 10px;
-            font-size: 14px;
-            color: #333;
+            padding: 15px;
+            font-size: 15px;
+            color: #444;
             line-height: 1.6;
             overflow-y: auto;
-            white-space: pre-wrap; /* Đảm bảo xuống dòng */
+            white-space: pre-wrap;
+            flex-grow: 1;
         }
-        .popup-content p {
-            margin: 0;
+        .settings-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        .setting-section {
-            margin-bottom: 15px;
+        .settings-item {
             display: flex;
             flex-direction: column;
             align-items: center;
+            gap: 5px;
         }
-        .setting-section label {
-            margin-bottom: 5px;
-            font-weight: bold;
-            text-align: center;
-            line-height: 1.0;
+        .settings-item label {
+            font-weight: 600;
+            color: #333;
+            line-height: 1.2;
         }
-        .setting-section input[type="text"],
-        .setting-section select {
-            width: 80%;
-            max-width: 500px;
-            padding: 5px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            transition: border-color 0.3s;
-            text-align: center;
-        }
-        .setting-section input[type="text"]:focus,
-        .setting-section select:focus {
-            border-color: #4A90E2;
-        }
-        .instruction {
-            text-align: left;
-            font-size: 14px;
-            color: #555;
+        .settings-item input[type="text"] {
             width: 80%;
             max-width: 300px;
-            text-align: left;
-            line-height: 1.0;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+            background: #f9f9f9;
+            transition: border-color 0.2s ease;
+        }
+        .settings-item input[type="text"]:focus {
+            border-color: #4A90E2;
+            outline: none;
+        }
+        .instruction {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.2;
         }
         .instruction a {
             color: #4A90E2;
-            text-decoration: underline;
+            text-decoration: none;
+            transition: color 0.2s ease;
         }
         .instruction a:hover {
-            text-decoration: none;
+            color: #357ABD;
+            text-decoration: underline;
+        }
+        .shortcut-section {
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        .shortcut-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .shortcut-controls label {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 14px;
+            font-weight: 400;
+            color: #444;
+        }
+        .shortcut-controls input[type="radio"] {
+            margin: 0;
+        }
+        .shortcut-controls input[type="text"] {
+            width: 40px;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+            background: #f9f9f9;
+            transition: border-color 0.2s ease;
+        }
+        .shortcut-controls input[type="text"]:focus {
+            border-color: #4A90E2;
+            outline: none;
         }
         .button-container {
+            margin-top: 10px;
+        }
+        .save-btn {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #4A90E2, #357ABD);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
             display: flex;
-            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .popup-content button {
-            padding: 10px 20px;
-            background: #4A90E2;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.3s;
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
         }
-        .popup-content button:hover {
-            background: #3A7ACB;
-        }
-        .close-btn {
-            background: none;
-            border: none;
-            color: #fff;
-            font-size: 20px;
-            cursor: pointer;
-            transition: opacity 0.3s;
-        }
-        .close-btn:hover {
-            opacity: 0.7;
+        .save-icon {
+            width: 16px;
+            height: 16px;
         }
         .resize-handle {
             position: absolute;
@@ -446,96 +516,46 @@
             height: 20px;
             background: #4A90E2;
             cursor: se-resize;
-            border-bottom-right-radius: 10px;
-            transition: background 0.3s;
+            border-bottom-right-radius: 12px;
+            transition: background 0.2s ease;
         }
         .resize-handle:hover {
-            background: #3A7ACB;
+            background: #357ABD;
         }
-        .loader {
+        .summarizer-loader {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.6);
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 9999;
+            z-index: 10000;
         }
         .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #fff;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top: 5px solid #4A90E2;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* SVG Icon */
-        .cog-icon {
-            width: 1em;
-            height: 1em;
-            vertical-align: middle;
-        }
-        /* Tooltip */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: pointer;
-        }
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 120px;
-            background-color: black;
-            color: #fff;
-            text-align: center;
-            border-radius: 5px;
-            padding: 5px 0;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -60px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-        hr {
-            width: 80%;
-            max-width: 300px;
-            border: none;
-            border-top: 1px solid #ccc;
-            margin: 20px 0;
-        }
-        .key-section {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
-        .key-section label {
-            font-weight: bold;
-            text-align: center;
-            line-height: 1.0;
-        }
-        .key-section select {
-            width: 300px;
-            padding: 5px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            transition: border-color 0.3s;
-            text-align: center;
-        }
-        .key-section select:focus {
-            border-color: #4A90E2;
-        }
-    `;
-    document.head.appendChild(style);
-})();
+    `
+    document.head.appendChild(style)
+
+    // Thêm font Roboto
+    const fontLink = document.createElement('link')
+    fontLink.href =
+        'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap'
+    fontLink.rel = 'stylesheet'
+    document.head.appendChild(fontLink)
+
+    // Khởi chạy script
+    initialize()
+})()
