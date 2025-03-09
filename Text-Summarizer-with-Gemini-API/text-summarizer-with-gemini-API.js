@@ -52,7 +52,7 @@
     function summarizeTextWithGemini(text) {
         showLoader();
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
-        const prompt = `Tóm tắt nội dung sau đây, đảm bảo kết quả có xuống dòng và bố cục hợp lý để dễ đọc. Kết quả chỉ nên chứa thông tin cần tóm tắt, loại bỏ các phần thừa như 'dưới đây là tóm tắt'. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể thêm emoji để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế sử dụng chúng. Nội dung cần tóm tắt là: ${text}`;
+        const prompt = `Tóm tắt nội dung sau đây, đảm bảo giữ lại các ý chính và chi tiết quan trọng, tránh lược bỏ quá nhiều. Kết quả cần có xuống dòng và bố cục hợp lý để dễ đọc. Chỉ bao gồm thông tin cần tóm tắt, không thêm phần thừa như 'dưới đây là tóm tắt' hoặc lời dẫn. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể thêm emoji (🌟, ➡️, 1️⃣) để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế và sử dụng một cách tinh tế. Nội dung cần tóm tắt là: ${text}`;
         const requestBody = {
             contents: [{ parts: [{ text: prompt }] }]
         };
