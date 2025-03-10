@@ -109,7 +109,7 @@
 
     // Gửi yêu cầu đến Gemini API
     function summarizeText(text) {
-        const maxLength = 5000
+        const maxLength = 10000
         if (text.length > maxLength) {
             showPopup(
                 'Lỗi',
