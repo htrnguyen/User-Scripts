@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Text Summarizer with Gemini API
 // @namespace    http://tampermonkey.net/
-// @version      2.1
-// @description  Summarize selected text using Gemini 2.0 Flash API
+// @version      3.2
+// @description  Summarize selected text using Gemini 2.0 Flash API with enhanced features
 // @author       Hà Trọng Nguyễn
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
@@ -15,7 +15,7 @@
 // @icon         https://github.com/htrnguyen/User-Scripts/raw/main/Text-Summarizer-with-Gemini-API/text-summarizer-logo.png
 // @license      MIT
 // @downloadURL  https://update.greasyfork.org/scripts/529267/Text%20Summarizer%20with%20Gemini%20API.user.js
-// @updateURL    https://update.greasyfork.org/scripts/529267/Text%20Summarizer-with-Gemini%20API.meta.js
+// @updateURL    https://update.greasyfork.org/scripts/529267/Text%20Summarizer%20with%20Gemini%20API.meta.js
 // ==/UserScript==
 
 ;(function () {
@@ -28,9 +28,11 @@
         'Alt',
     ]
     let currentPopup = null
+    let currentRequest = null
     let isDragging = false
     let isResizing = false
     let offsetX, offsetY, resizeOffsetX, initialWidth
+    let isProcessing = false // Biến khóa để ngăn spam
 
     // Hàm khởi tạo
     function initialize() {
@@ -47,6 +49,25 @@
             GM_registerMenuCommand('Cài đặt Text Summarizer', () =>
                 showPopup('Cài đặt', getSettingsContent())
             )
+            GM_registerMenuCommand('Lịch sử tóm tắt', () => {
+                const history = JSON.parse(GM_getValue('summaryHistory', '[]'))
+                if (history.length === 0) {
+                    showPopup('Lịch sử tóm tắt', 'Chưa có tóm tắt nào!')
+                    return
+                }
+                const historyContent = history
+                    .map(
+                        (item, index) => `
+                    <div class="history-item">
+                        <strong>${index + 1}. ${item.timestamp}</strong><br>
+                        <strong>Văn bản gốc:</strong> ${item.text}<br>
+                        <strong>Tóm tắt:</strong><br>${item.summary}<br><br>
+                    </div>
+                `
+                    )
+                    .join('')
+                showPopup('Lịch sử tóm tắt', historyContent)
+            })
         }
     }
 
@@ -68,38 +89,49 @@
     function handleKeydown(e) {
         if (checkShortcut(e)) {
             e.preventDefault()
+            // Ngăn spam nếu đang xử lý
+            if (isProcessing) return
+            isProcessing = true
             const selectedText = window.getSelection().toString().trim()
             if (selectedText) {
                 summarizeText(selectedText)
             } else {
                 showPopup(
                     'Lỗi',
-                    'Vui lòng chọn một đoạn văn bản để tóm tắt nhé!'
+                    'Vui lòng chọn một đoạn văn bản để tóm tắt nhé!',
+                    2000
                 )
             }
         } else if (e.key === 'Escape' && currentPopup) {
-            closePopup()
+            closeAllPopups(true) // Đóng thủ công với animation
         }
     }
 
     // Gửi yêu cầu đến Gemini API
     function summarizeText(text) {
+        const maxLength = 5000
+        if (text.length > maxLength) {
+            showPopup(
+                'Lỗi',
+                `Văn bản quá dài (${text.length} ký tự). Vui lòng chọn đoạn văn dưới ${maxLength} ký tự!`,
+                2000
+            )
+            return
+        }
+        closeAllPopups() // Xóa ngay không animation
         showLoader()
-        GM_xmlhttpRequest({
+        if (currentRequest) {
+            currentRequest.abort()
+        }
+        const prompt = `Tóm tắt nội dung sau đây một cách chi tiết và đầy đủ, đảm bảo giữ lại tất cả ý chính và chi tiết quan trọng mà không lược bỏ bất kỳ thông tin nào. Kết quả cần được trình bày với xuống dòng và bố cục hợp lý để dễ đọc, rõ ràng. Chỉ bao gồm thông tin cần tóm tắt, không thêm phần thừa như 'dưới đây là tóm tắt' hoặc lời dẫn. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể sử dụng các biểu tượng emoji để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế và sử dụng một cách tinh tế. Nội dung cần tóm tắt là: ${text}`
+        currentRequest = GM_xmlhttpRequest({
             method: 'POST',
             url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
             headers: {'Content-Type': 'application/json'},
             data: JSON.stringify({
-                contents: [
-                    {
-                        parts: [
-                            {
-                                text: `Tóm tắt nội dung sau đây, đảm bảo giữ lại các ý chính và chi tiết quan trọng, tránh lược bỏ quá nhiều. Kết quả cần có xuống dòng và bố cục hợp lý để dễ đọc. Chỉ bao gồm thông tin cần tóm tắt, không thêm phần thừa như 'dưới đây là tóm tắt' hoặc lời dẫn. Định dạng trả về là văn bản thông thường, không sử dụng markdown. Bạn có thể thêm emoji (🌟, ➡️, 1️⃣) để làm dấu chấm, số thứ tự hoặc gạch đầu dòng, nhưng hãy hạn chế và sử dụng một cách tinh tế. Nội dung cần tóm tắt là: ${text}`,
-                            },
-                        ],
-                    },
-                ],
+                contents: [{parts: [{text: prompt}]}],
             }),
+            timeout: 10000,
             onload: function (response) {
                 hideLoader()
                 const data = JSON.parse(response.responseText)
@@ -107,60 +139,150 @@
                     const summary =
                         data.candidates[0].content.parts[0].text ||
                         'Không thể tóm tắt được nội dung này!'
+                    let history = JSON.parse(
+                        GM_getValue('summaryHistory', '[]')
+                    )
+                    history.unshift({
+                        text: text.substring(0, 50) + '...',
+                        summary,
+                        timestamp: new Date().toLocaleString(),
+                    })
+                    if (history.length > 5) history.pop()
+                    GM_setValue('summaryHistory', JSON.stringify(history))
                     showPopup('Tóm tắt', summary)
                 } else if (data.error) {
-                    showPopup('Lỗi', `Có lỗi từ API: ${data.error.message}`)
+                    showPopup(
+                        'Lỗi',
+                        `Có lỗi từ API: ${data.error.message}`,
+                        5000
+                    )
                 } else {
                     showPopup(
                         'Lỗi',
-                        'Phản hồi từ API không hợp lệ. Hãy thử lại!'
+                        'Phản hồi từ API không hợp lệ. Hãy thử lại!',
+                        5000
                     )
                 }
+                currentRequest = null
+                isProcessing = false // Mở khóa sau khi hoàn thành
             },
             onerror: function (error) {
                 hideLoader()
                 showPopup(
                     'Lỗi',
-                    `Lỗi kết nối: ${error.message}. Kiểm tra mạng nhé!`
+                    `Lỗi kết nối: ${
+                        error.statusText || 'Không xác định'
+                    }. Kiểm tra mạng hoặc API key!`,
+                    5000
                 )
+                currentRequest = null
+                isProcessing = false
+            },
+            ontimeout: function () {
+                hideLoader()
+                showPopup(
+                    'Lỗi',
+                    'Yêu cầu timeout. Vui lòng kiểm tra kết nối hoặc thử lại!',
+                    5000
+                )
+                currentRequest = null
+                isProcessing = false
             },
         })
     }
 
     // Hiển thị popup duy nhất
-    function showPopup(title, content) {
-        closePopup() // Đóng popup cũ trước khi mở mới
-
+    function showPopup(title, content, autoClose = 0) {
+        // Xóa popup cũ ngay lập tức
+        closeAllPopups()
         currentPopup = document.createElement('div')
         currentPopup.className = 'summarizer-popup'
         currentPopup.innerHTML = `
             <div class="popup-header">
                 <h2>${title}</h2>
                 <div class="header-actions">
+                    ${
+                        title === 'Tóm tắt'
+                            ? '<button class="copy-btn" title="Sao chép">📋</button>'
+                            : ''
+                    }
                     <button class="close-btn">×</button>
                 </div>
             </div>
             <div class="${
                 title === 'Tóm tắt' ? 'popup-content-summary' : 'popup-content'
             }">${content}</div>
-            <div class="resize-handle"></div>
+            ${title === 'Tóm tắt' ? '' : '<div class="resize-handle"></div>'}
         `
         document.body.appendChild(currentPopup)
 
+        // Hiệu ứng mở
         currentPopup.style.opacity = '0'
-        currentPopup.style.transform = 'translate(-50%, -50%) scale(0.9)'
-        setTimeout(() => {
+        currentPopup.style.transform = 'translate(-50%, -50%) scale(0.95)'
+        requestAnimationFrame(() => {
+            currentPopup.style.transition =
+                'opacity 0.15s ease-out, transform 0.15s ease-out'
             currentPopup.style.opacity = '1'
             currentPopup.style.transform = 'translate(-50%, -50%) scale(1)'
-        }, 10)
+        })
 
         currentPopup
             .querySelector('.close-btn')
-            .addEventListener('click', closePopup)
+            .addEventListener('click', () => closeAllPopups(true))
+
+        if (title === 'Tóm tắt') {
+            const copyBtn = currentPopup.querySelector('.copy-btn')
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard
+                    .writeText(content)
+                    .then(() => {
+                        copyBtn.title = 'Đã sao chép!'
+                        setTimeout(() => (copyBtn.title = 'Sao chép'), 2000)
+                    })
+                    .catch((err) => {
+                        showPopup('Lỗi', 'Không thể sao chép: ' + err.message)
+                    })
+            })
+        }
 
         if (title === 'Cài đặt') {
             const saveBtn = currentPopup.querySelector('.save-btn')
             if (saveBtn) saveBtn.addEventListener('click', saveSettings)
+            const checkBtn = currentPopup.querySelector('.check-btn')
+            checkBtn.addEventListener('click', () => {
+                const testApiKey = document
+                    .getElementById('apiKeyInput')
+                    .value.trim()
+                if (!testApiKey) {
+                    showPopup('Lỗi', 'Vui lòng nhập API key để kiểm tra!')
+                    return
+                }
+                GM_xmlhttpRequest({
+                    method: 'POST',
+                    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${testApiKey}`,
+                    headers: {'Content-Type': 'application/json'},
+                    data: JSON.stringify({
+                        contents: [{parts: [{text: 'Test'}]}],
+                    }),
+                    onload: function (response) {
+                        const data = JSON.parse(response.responseText)
+                        if (data.candidates) {
+                            showPopup('Thành công', 'API key hợp lệ!')
+                        } else {
+                            showPopup(
+                                'Lỗi',
+                                'API key không hợp lệ. Vui lòng kiểm tra lại!'
+                            )
+                        }
+                    },
+                    onerror: function () {
+                        showPopup(
+                            'Lỗi',
+                            'Không thể kiểm tra API key. Kiểm tra mạng hoặc key!'
+                        )
+                    },
+                })
+            })
         }
 
         const header = currentPopup.querySelector('.popup-header')
@@ -169,12 +291,54 @@
         document.addEventListener('mouseup', stopDrag)
 
         const resizeHandle = currentPopup.querySelector('.resize-handle')
-        resizeHandle.addEventListener('mousedown', startResize)
-        document.addEventListener('mousemove', resize)
-        document.addEventListener('mouseup', stopResize)
+        if (resizeHandle) {
+            resizeHandle.addEventListener('mousedown', startResize)
+            document.addEventListener('mousemove', resize)
+            document.addEventListener('mouseup', stopResize)
+        }
 
         document.body.style.pointerEvents = 'none'
         currentPopup.style.pointerEvents = 'auto'
+
+        if (autoClose > 0) {
+            setTimeout(() => {
+                closeAllPopups(true) // Đóng với animation
+                isProcessing = false // Mở khóa sau khi tự động đóng
+            }, autoClose)
+        }
+    }
+
+    // Đóng tất cả popup và loader
+    function closeAllPopups(withAnimation = false) {
+        if (currentPopup) {
+            if (withAnimation) {
+                // Đóng với animation (khi người dùng đóng thủ công)
+                currentPopup.style.transition =
+                    'opacity 0.15s ease-out, transform 0.15s ease-out'
+                currentPopup.style.opacity = '0'
+                currentPopup.style.transform =
+                    'translate(-50%, -50%) scale(0.95)'
+                setTimeout(() => {
+                    currentPopup.remove()
+                    currentPopup = null
+                    document.body.style.pointerEvents = 'auto'
+                    document.removeEventListener('mousemove', drag)
+                    document.removeEventListener('mouseup', stopDrag)
+                    document.removeEventListener('mousemove', resize)
+                    document.removeEventListener('mouseup', stopResize)
+                }, 150)
+            } else {
+                // Xóa ngay không animation (khi tạo popup mới)
+                currentPopup.remove()
+                currentPopup = null
+                document.body.style.pointerEvents = 'auto'
+                document.removeEventListener('mousemove', drag)
+                document.removeEventListener('mouseup', stopDrag)
+                document.removeEventListener('mousemove', resize)
+                document.removeEventListener('mouseup', stopResize)
+            }
+        }
+        hideLoader()
     }
 
     // Lấy nội dung cài đặt
@@ -183,7 +347,10 @@
             <div class="settings-container">
                 <div class="settings-item">
                     <label>API Key:</label>
-                    <input type="text" id="apiKeyInput" placeholder="Dán API key vào đây" value="${API_KEY}" />
+                    <div class="api-key-container">
+                        <input type="text" id="apiKeyInput" placeholder="Dán API key vào đây" value="${API_KEY}" />
+                        <button class="check-btn">Kiểm tra</button>
+                    </div>
                 </div>
                 <div class="settings-item instruction">
                     <span>Lấy key tại: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a></span>
@@ -247,12 +414,12 @@
         GM_setValue('shortcutKey', shortcutKey)
         GM_setValue('modifierKeys', JSON.stringify(modifierKeys))
         API_KEY = apiKey
-        closePopup()
+        closeAllPopups()
         showPopup(
             'Thành công',
             'Cài đặt đã được lưu! Trang sẽ làm mới sau 1 giây.'
         )
-        setTimeout(() => location.reload(), 1000) // Làm mới trang để tránh bị kẹt
+        setTimeout(() => location.reload(), 1000)
     }
 
     // Xử lý kéo popup
@@ -307,26 +474,6 @@
         if (loader) loader.remove()
     }
 
-    // Đóng popup
-    function closePopup() {
-        if (currentPopup) {
-            currentPopup.style.opacity = '1'
-            currentPopup.style.transform = 'translate(-50%, -50%) scale(1)'
-            setTimeout(() => {
-                currentPopup.style.opacity = '0'
-                currentPopup.style.transform =
-                    'translate(-50%, -50%) scale(0.9)'
-                setTimeout(() => {
-                    currentPopup.remove()
-                    currentPopup = null
-                    document.body.style.pointerEvents = 'auto'
-                    document.removeEventListener('mousemove', drag)
-                    document.removeEventListener('mouseup', stopDrag)
-                }, 200)
-            }, 10)
-        }
-    }
-
     // CSS
     const style = document.createElement('style')
     style.innerHTML = `
@@ -340,13 +487,13 @@
             height: 400px;
             background: #ffffff;
             border-radius: 12px;
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
             z-index: 9999;
             font-family: 'Roboto', sans-serif;
             overflow: hidden;
-            transition: opacity 0.2s ease, transform 0.2s ease;
             display: flex;
             flex-direction: column;
+            will-change: opacity, transform;
         }
         .popup-header {
             background: linear-gradient(135deg, #4A90E2, #357ABD);
@@ -377,11 +524,16 @@
             color: #fff;
             font-size: 22px;
             cursor: pointer;
-            transition: transform 0.2s ease, opacity 0.2s ease;
+            transition: transform 0.15s ease-out, opacity 0.15s ease-out;
         }
         .header-actions button:hover {
             transform: scale(1.1);
             opacity: 0.9;
+        }
+        .copy-btn {
+            font-size: 18px;
+            padding: 2px;
+            margin-left: 10px;
         }
         .popup-content {
             padding: 15px;
@@ -427,11 +579,32 @@
             font-size: 14px;
             text-align: center;
             background: #f9f9f9;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.15s ease-out;
         }
         .settings-item input[type="text"]:focus {
             border-color: #4A90E2;
             outline: none;
+        }
+        .api-key-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .check-btn {
+            padding: 8px;
+            width: 80%;
+            max-width: 300px;
+            background: linear-gradient(135deg, #4A90E2, #357ABD);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+        }
+        .check-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 144, 226, 0.4);
         }
         .instruction {
             font-size: 13px;
@@ -441,7 +614,7 @@
         .instruction a {
             color: #4A90E2;
             text-decoration: none;
-            transition: color 0.2s ease;
+            transition: color 0.15s ease-out;
         }
         .instruction a:hover {
             color: #357ABD;
@@ -477,7 +650,7 @@
             font-size: 14px;
             text-align: center;
             background: #f9f9f9;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.15s ease-out;
         }
         .shortcut-controls input[type="text"]:focus {
             border-color: #4A90E2;
@@ -498,7 +671,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
         }
         .save-btn:hover {
             transform: translateY(-2px);
@@ -507,6 +680,15 @@
         .save-icon {
             width: 16px;
             height: 16px;
+        }
+        .history-item {
+            border-bottom: 1px solid #ddd;
+            padding: 10px 0;
+            font-size: 14px;
+            color: #444;
+        }
+        .history-item:last-child {
+            border-bottom: none;
         }
         .resize-handle {
             position: absolute;
@@ -517,7 +699,7 @@
             background: #4A90E2;
             cursor: se-resize;
             border-bottom-right-radius: 12px;
-            transition: background 0.2s ease;
+            transition: background 0.15s ease-out;
         }
         .resize-handle:hover {
             background: #357ABD;
@@ -540,7 +722,7 @@
             border-radius: 50%;
             width: 50px;
             height: 50px;
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }

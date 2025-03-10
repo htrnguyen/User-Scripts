@@ -3,7 +3,7 @@
 ![Logo](https://github.com/htrnguyen/User-Scripts/raw/main/Text-Summarizer-with-Gemini-API/text-summarizer-logo.png)
 
 ![GitHub License](https://img.shields.io/github/license/htrnguyen/User-Scripts?style=for-the-badge)
-![Greasy Fork Version](https://img.shields.io/badge/Version-2.1-brightgreen?style=for-the-badge)
+![Greasy Fork Version](https://img.shields.io/badge/Version-3.2-brightgreen?style=for-the-badge)
 
 **Text Summarizer with Gemini API** là một userscript giúp tóm tắt văn bản được chọn từ bất kỳ trang web nào sử dụng API Gemini 2.0 Flash. Với giao diện thân thiện và dễ sử dụng, script cung cấp các tính năng sau:
 
