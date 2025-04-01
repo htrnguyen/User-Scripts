@@ -1,35 +1,33 @@
 // ==UserScript==
 // @name         Unlock Unlimited Medium
 // @namespace    https://github.com/htrnguyen/User-Scripts/tree/main/Unlock-Unlimited-Medium
-// @version      1.7
-// @description  Unlock all Medium-based articles via medium.rest, detecting Medium logo in the top-left corner for UI enhancements.
+// @version      1.8
+// @description  Unlock all Medium-based articles via freedium.cfd, detecting Medium logo in the top-left corner for UI enhancements.
 // @author       Hà Trọng Nguyễn
 // @license      MIT
 // @match        *://*/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_openInTab
 // @supportURL   https://github.com/htrnguyen/User-Scripts/tree/main/Unlock-Unlimited-Medium/issues
-// @homepage     https://medium.rest/
+// @homepage     https://freedium.cfd/
 // @icon         https://github.com/htrnguyen/User-Scripts/raw/main/Unlock-Unlimited-Medium/Unlock%20Unlimited%20Medium%20Logo.png
 // ==/UserScript==
 
 ;(function () {
     'use strict'
 
-    function generateMediumRestURL(originalUrl) {
-        return `https://medium.rest/query-by-url?urlPost=${encodeURIComponent(
-            originalUrl
-        )}`
+    function generateFreediumURL(originalUrl) {
+        return `https://freedium.cfd/${originalUrl}`
     }
 
-    function openMediumRestWithUrl(mediumUrl) {
-        GM_openInTab(generateMediumRestURL(mediumUrl), {active: true})
+    function openFreediumWithUrl(mediumUrl) {
+        GM_openInTab(generateFreediumURL(mediumUrl), {active: true})
     }
 
     function isMediumArticle(link) {
         try {
             const url = new URL(link.href)
-            if (url.hostname.includes('medium.com')) return true
+            if (url.hostname.includes('medium.com') || url.hostname.includes('osintteam.blog')) return true
 
             // Kiểm tra nếu có logo Medium gần đó
             const parent = link.closest('div')
@@ -68,7 +66,7 @@
         btn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)'
 
         btn.addEventListener('click', () => {
-            openMediumRestWithUrl(window.location.href)
+            openFreediumWithUrl(window.location.href)
         })
 
         document.body.appendChild(btn)
@@ -78,13 +76,13 @@
         if (isMediumArticle(link)) {
             link.addEventListener('click', (event) => {
                 event.preventDefault()
-                openMediumRestWithUrl(link.href)
+                openFreediumWithUrl(link.href)
             })
         }
     })
 
     GM_registerMenuCommand('Unlock this Medium Article', () => {
-        openMediumRestWithUrl(location.href)
+        openFreediumWithUrl(location.href)
     })
 
     // Nếu phát hiện logo Medium ở góc trái trên cùng, hiển thị nút Unlock
