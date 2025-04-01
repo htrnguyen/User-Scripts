@@ -1,56 +1,65 @@
 # Unlock Unlimited Medium
 
-![Logo](https://github.com/htrnguyen/User-Scripts/raw/main/Unlock-Unlimited-Medium/Unlock%20Unlimited%20Medium%20Logo.png)
+A Tampermonkey/Greasemonkey userscript that automatically unlocks Medium articles and Medium-based publications (like osintteam.blog) using freedium.cfd.
 
-![GitHub License](https://img.shields.io/github/license/htrnguyen/User-Scripts?style=for-the-badge)
-![Greasy Fork Version](https://img.shields.io/greasyfork/v/522818?label=Greasy%20Fork&style=for-the-badge)
+## Features
 
-## 🔓 **Introduction**
+- 🔓 Automatically unlocks Medium articles and Medium-based publications
+- 🎯 Works with medium.com and osintteam.blog domains
+- 🔍 Detects Medium articles through URL patterns and Medium logo presence
+- 🖱️ Adds an "Unlock" button on Medium article pages
+- 📱 Works on both desktop and mobile browsers
+- 🎨 Clean and intuitive user interface
 
-**Unlock Unlimited Medium** is a userscript that allows you to **read Medium articles without any paywall restrictions**. The script automatically redirects articles from **Medium and its subdomains** to **[medium.rest](https://medium.rest)**, enabling full access to content without the need to sign in or pay for a subscription.
+## Installation
 
-## 🛠 **Features**
+1. Install a userscript manager:
 
--   🚀 **Automatic Redirection**: Redirects all Medium articles (including subdomains) to **medium.rest** for unrestricted reading.
--   🔍 **Subdomain Detection**: Works with custom Medium subdomains like `ai.plainenglish.io`, `towardsdatascience.com`, etc.
--   🎨 **Smart Unlock Button**: Displays an **unlock button** at the bottom-right corner **only if Medium's logo is detected** on the page.
--   ⚡ **Fast & Lightweight**: The script is optimized for performance and minimal impact on page load times.
+   - [Tampermonkey](https://www.tampermonkey.net/) (Recommended)
+   - [Greasemonkey](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/)
+   - [Violentmonkey](https://violentmonkey.github.io/)
 
-## 📥 **Installation**
+2. Click the install button below:
+   [![Install](https://img.shields.io/badge/Install-UserScript-blue.svg)](https://raw.githubusercontent.com/htrnguyen/User-Scripts/main/Unlock-Unlimited-Medium/unlock-unlimited-medium.user.js)
 
-1. **Install a userscript manager**:
+## Usage
 
-    - [Tampermonkey](https://www.tampermonkey.net/)
-    - [Violentmonkey](https://violentmonkey.github.io/)
+The script will automatically:
 
-2. **Install the script from Greasy Fork**:  
-   👉 [![Install](https://img.shields.io/badge/Install-Script-brightgreen?style=for-the-badge)](https://greasyfork.org/en/scripts/522818-unlock-unlimited-medium)
+- Add an "Unlock" button to Medium article pages
+- Intercept clicks on Medium article links and open them through freedium.cfd
+- Add a menu command to unlock the current article
 
-## 🎯 **Usage**
+### Manual Unlock
 
-1. **Open any Medium article**.
-2. If the page contains the **Medium logo** in the top-left corner, the **Unlock Medium button** appears at the bottom-right.
-3. **Click the button** to open the article in **medium.rest**.
-4. Alternatively, you can **right-click on any Medium link** and choose the option to unlock it.
+- Click the "🔓 Unlock" button on any Medium article page
+- Use the "Unlock this Medium Article" menu command in your userscript manager
+- Click any Medium article link to automatically unlock it
 
-## 🖥️ **Demo**
+## Supported Sites
 
-![Demo](https://github.com/htrnguyen/User-Scripts/raw/main/Unlock-Unlimited-Medium/Demo.png)
+- medium.com
+- osintteam.blog
+- Any other Medium-based publication
 
-## 📧 **Support**
+## How It Works
 
-If you encounter any issues or have improvement suggestions, please create an [issue](https://github.com/htrnguyen/User-Scripts/issues) on GitHub.
+The script uses freedium.cfd to bypass Medium's paywall by prepending the service URL to the original article URL. For example:
 
-## 📄 **License**
+```
+Original: https://medium.com/article
+Unlocked: https://freedium.cfd/https://medium.com/article
+```
 
-This project is licensed under the **MIT License**. See the [LICENSE](https://github.com/htrnguyen/User-Scripts/blob/main/LICENSE) file for more details.
+## Contributing
 
-## 👨‍💻 **Author**
+Feel free to submit issues and enhancement requests!
 
--   **Hà Trọng Nguyễn**  
-    GitHub: [htrnguyen](https://github.com/htrnguyen)  
-    Greasy Fork: [Unlock Unlimited Medium](https://greasyfork.org/en/scripts/522818-unlock-unlimited-medium)
+## License
 
-## 🌐 **Source**
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-This project is based on the service **[medium.rest](https://medium.rest)**, which helps you access Medium articles without restrictions.
+## Credits
+
+- [freedium.cfd](https://freedium.cfd/) - The service that makes this script possible
+- Medium - The platform this script enhances
